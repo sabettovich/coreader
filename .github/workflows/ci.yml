@@ -14,6 +14,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Print revision
+        run: |
+          git rev-parse HEAD
+          git log -1 --oneline
+          sed -n '320,380p' app/server/main.py || true
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
