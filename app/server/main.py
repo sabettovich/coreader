@@ -324,6 +324,14 @@ async def chat(req: ChatRequest) -> ChatResponse:
             "title": h.get("title", ""),
             "quote": h.get("quote", "")
         } for h in confident_hits]
+        if citations and SETTINGS.offline:
+            shortest = sorted(citations, key=lambda c: len((c.get("quote") or "").strip()) or 1)[0]
+            q = (shortest.get("quote") or "").strip()
+            t = (shortest.get("title") or "").strip()
+            reply_off = f"По книге: \"{q}\" [{t}]" if q else "По книге: см. цитату [1] в списке ссылок."
+            logger.log("assistant", reply_off, citations=citations)
+            return ChatResponse(reply=reply_off, citations=citations)
+
         reply = "Нашёл релевантные места в книге." if citations else "Не нашёл подходящих цитат."
 
         # 6.0: генерация краткого ответа на основе цитат (только если онлайн)
@@ -413,90 +421,6 @@ async def export_note(payload: Dict[str, Any]) -> JSONResponse:
     except Exception as e:
         error_logger.log(route="/export", err=e)
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
-
-
-def _iter_dialog_files_between(start: Optional[str], end: Optional[str]):
-    """Генератор файлов журнала в диапазоне дат (строки YYYY-MM-DD)."""
-    files = sorted([p for p in DIALOG_DIR.glob("*.jsonl") if p.is_file()])
-    for p in files:
-        name = p.name  # YYYY-MM-DD-HHMM.jsonl
-        date = name.split("-")[:3]
-        try:
-            stamp = "-".join(date)
-        except Exception:
-            continue
-        if start and stamp < start:
-            continue
-        if end and stamp > end:
-            continue
-        yield p
-
-
-@app.get("/metrics")
-async def metrics(start: Optional[str] = None, end: Optional[str] = None) -> JSONResponse:
-    """Метрики по журналам: доля ответов ассистента с хотя бы одной цитатой.
-    Фильтр по датам (YYYY-MM-DD)."""
-    try:
-        total = 0
-        with_cite = 0
-        per_file: Dict[str, Dict[str, int]] = {}
-        for p in _iter_dialog_files_between(start, end):
-            t = 0
-            w = 0
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    if obj.get("role") == "assistant":
-                        t += 1
-                        cites = obj.get("citations") or []
-                        if isinstance(cites, list) and len(cites) > 0:
-                            w += 1
-            if t:
-                per_file[p.name] = {"assistant": t, "with_citation": w}
-                total += t
-                with_cite += w
-        ratio = (with_cite / total) if total else 0.0
-        return JSONResponse({
-            "status": "ok",
-            "start": start,
-            "end": end,
-            "total_assistant": total,
-            "with_citation": with_cite,
-            "ratio": round(ratio, 4),
-            "per_file": per_file,
-        })
-    except Exception as e:
-        error_logger.log(route="/metrics", err=e)
-        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
-
-
-@app.get("/metrics.csv")
-async def metrics_csv(start: Optional[str] = None, end: Optional[str] = None) -> PlainTextResponse:
-    """Экспорт метрик в CSV по дням/файлам."""
-    try:
-        lines = ["file,total_assistant,with_citation,ratio"]
-        for p in _iter_dialog_files_between(start, end):
-            t = 0
-            w = 0
-            with open(p, "r", encoding="utf-8") as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                    except Exception:
-                        continue
-                    if obj.get("role") == "assistant":
-                        t += 1
-                        if obj.get("citations"):
-                            w += 1
-            r = (w / t) if t else 0.0
-            lines.append(f"{p.name},{t},{w},{r:.4f}")
-        return PlainTextResponse("\n".join(lines), media_type="text/csv")
-    except Exception as e:
-        error_logger.log(route="/metrics.csv", err=e)
-        return PlainTextResponse("error", status_code=500)
 
 
 @app.post("/export/preview")
@@ -730,6 +654,66 @@ async def get_logs(file: Optional[str] = None, role: Optional[str] = None, q: Op
         })
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
+def _iter_dialog_files_between(start: Optional[str], end: Optional[str]):
+    files = sorted([p for p in DIALOG_DIR.glob("*.jsonl") if p.is_file()])
+    for p in files:
+        parts = p.name.split("-")[:3]
+        stamp = "-".join(parts) if len(parts) == 3 else None
+        if not stamp:
+            continue
+        if start and stamp < start:
+            continue
+        if end and stamp > end:
+            continue
+        yield p
+
+
+@app.get("/metrics")
+async def metrics(start: Optional[str] = None, end: Optional[str] = None) -> JSONResponse:
+    total = with_cite = 0
+    per_file: Dict[str, Dict[str, int]] = {}
+    for p in _iter_dialog_files_between(start, end):
+        t = w = 0
+        with open(p, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if obj.get("role") == "assistant":
+                    t += 1
+                    cites = obj.get("citations") or []
+                    if isinstance(cites, list) and len(cites) > 0:
+                        w += 1
+        if t:
+            per_file[p.name] = {"assistant": t, "with_citation": w}
+            total += t
+            with_cite += w
+    ratio = (with_cite / total) if total else 0.0
+    return JSONResponse({"status": "ok", "start": start, "end": end, "total_assistant": total, "with_citation": with_cite, "ratio": round(ratio, 4), "per_file": per_file})
+
+
+@app.get("/metrics.csv")
+async def metrics_csv(start: Optional[str] = None, end: Optional[str] = None) -> PlainTextResponse:
+    lines = ["file,total_assistant,with_citation,ratio"]
+    for p in _iter_dialog_files_between(start, end):
+        t = w = 0
+        with open(p, "r", encoding="utf-8") as f:
+            for line in f:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if obj.get("role") == "assistant":
+                    t += 1
+                    cites = obj.get("citations") or []
+                    if isinstance(cites, list) and len(cites) > 0:
+                        w += 1
+        r = (w / t) if t else 0.0
+        lines.append(f"{p.name},{t},{w},{r:.4f}")
+    return PlainTextResponse("\n".join(lines), media_type="text/csv")
 
 
 @app.get("/samples.csv")
