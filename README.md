@@ -1,5 +1,7 @@
 # Coreader
 
+[![CI](https://github.com/sabettovich/coreader/actions/workflows/ci.yml/badge.svg)](https://github.com/sabettovich/coreader/actions/workflows/ci.yml)
+
 Локальный помощник для чтения: извлекает цитаты из Markdown-книги, отвечает строго по тексту, экспортирует заметки в Obsidian.
 
 ## Требования
