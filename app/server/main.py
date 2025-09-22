@@ -335,9 +335,7 @@ async def chat(req: ChatRequest) -> ChatResponse:
                 quote = c.get("quote") or ""
                 ctx_lines.append(f"[{i}] {title}: \"{quote}\"")
             ctx = "\n".join(ctx_lines)
-            # Лимит символов → приблизительный лимит токенов
             approx_tokens = max(60, min(200, int(SETTINGS.reply_limit_chars / 4)))
-            # Пресеты сократичности (1 — прямой ответ; 2 — ответ + вопрос; 3 — в основном вопрос)
             if SETTINGS.socratic_level == 1:
                 style = "Дай прямой лаконичный ответ."
             elif SETTINGS.socratic_level == 3:
@@ -356,10 +354,9 @@ async def chat(req: ChatRequest) -> ChatResponse:
                 if gen:
                     reply = gen.strip()
             except Exception:
-                # Остаёмся на retrieval-only ответе
                 pass
         elif citations and SETTINGS.offline:
-            # Офлайн-фолбэк: всегда возвращаем краткий ответ с цитатой
+            # Офлайн-фолбэк: всегда возвращаем краткий ответ с кавычками вокруг цитаты
             shortest = sorted(citations, key=lambda c: len((c.get("quote") or "").strip()) or 1)[0]
             q = (shortest.get("quote") or "").strip()
             t = (shortest.get("title") or "").strip()
