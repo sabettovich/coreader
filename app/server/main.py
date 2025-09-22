@@ -355,16 +355,15 @@ async def chat(req: ChatRequest) -> ChatResponse:
                 gen = client.chat(prompt, max_tokens=approx_tokens)
                 if gen:
                     reply = gen.strip()
-            except Exception as e:
+            except Exception:
                 # Остаёмся на retrieval-only ответе
                 pass
         elif citations and SETTINGS.offline:
-            # Офлайн-фолбэк: вернуть самую короткую цитату как обоснование
-            shortest = sorted(citations, key=lambda c: len(c.get("quote") or "9999"))[0]
+            # Офлайн-фолбэк: всегда возвращаем краткий ответ с цитатой
+            shortest = sorted(citations, key=lambda c: len((c.get("quote") or "").strip()) or 1)[0]
             q = (shortest.get("quote") or "").strip()
             t = (shortest.get("title") or "").strip()
-            if q:
-                reply = f"По книге: \"{q}\" [{t}]"
+            reply = f"По книге: \"{q}\" [{t}]" if q else "По книге: см. цитату [1] в списке ссылок."
         logger.log("assistant", reply, citations=citations)
         return ChatResponse(reply=reply, citations=citations)
     except Exception as e:
