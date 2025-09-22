@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import json
 from typing import Optional, List, Dict, Any
-
+import random
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.responses import PlainTextResponse
@@ -348,7 +348,6 @@ async def chat(req: ChatRequest) -> ChatResponse:
             prompt = (
                 "Отвечай по-русски, строго по приведённым цитатам. "
                 "Обязательно включи одну точную короткую цитату в кавычках вместе с пометкой источника в квадратных скобках, например: [1]. "
-                "Если вопрос о количестве — укажи число. Не добавляй сведений вне цитат. "
                 f"{style}\n\n"
                 f"Вопрос: {req.message}\n\nЦитаты:\n{ctx}\n\nКраткий ответ (<= {SETTINGS.reply_limit_chars} символов):"\
             )
@@ -737,7 +736,61 @@ async def get_logs(file: Optional[str] = None, role: Optional[str] = None, q: Op
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 
-# Static UI
+@app.get("/samples.csv")
+async def samples_csv(n: int = 10, start: Optional[str] = None, end: Optional[str] = None) -> PlainTextResponse:
+    try:
+        rows: List[Dict[str, str]] = []
+        for p in _iter_dialog_files_between(start, end):
+            last_user: Optional[str] = None
+            with open(p, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    role = obj.get("role")
+                    if role == "user":
+                        last_user = obj.get("text") or ""
+                        continue
+                    if role == "assistant":
+                        reply = obj.get("text") or ""
+                        ts = obj.get("ts") or ""
+                        cites = obj.get("citations") or []
+                        file = anchor = link = quote = ""
+                        if isinstance(cites, list) and len(cites) > 0:
+                            c0 = cites[0]
+                            file = c0.get("file") or ""
+                            anchor = c0.get("anchor") or ""
+                            quote = (c0.get("quote") or "").replace("\n", " ")
+                            if file and anchor:
+                                link = f"/book?file={file}#{anchor}"
+                        rows.append({
+                            "ts": ts,
+                            "question": (last_user or "").replace("\n", " "),
+                            "reply": reply.replace("\n", " "),
+                            "quote": quote,
+                            "file": file,
+                            "anchor": anchor,
+                            "link": link,
+                        })
+        random.shuffle(rows)
+        sample = rows[: max(1, min(int(n), 500))]
+        out = ["ts,question,reply,quote,file,anchor,link"]
+        def esc(s: str) -> str:
+            if any(ch in s for ch in [',', '"', '\n']):
+                return '"' + s.replace('"', '""') + '"'
+            return s
+        for r in sample:
+            out.append(
+                ",".join(esc(str(r.get(k, ""))) for k in [
+                    "ts", "question", "reply", "quote", "file", "anchor", "link"
+                ])
+            )
+        return PlainTextResponse("\n".join(out), media_type="text/csv")
+    except Exception as e:
+        error_logger.log(route="/samples.csv", err=e)
+        return PlainTextResponse("error", status_code=500)
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_DIR = PROJECT_ROOT / "app" / "web"
 app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="web")
