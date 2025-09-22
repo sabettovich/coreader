@@ -12,16 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
  && rm -rf /var/lib/apt/lists/*
 
-# Установим зависимости проекта
+# Установим базовые зависимости проекта (prod)
 COPY requirements.txt ./
-# requirements-dev.txt может отсутствовать
-COPY requirements-dev.txt ./ 2>/dev/null || true
 RUN pip install --upgrade pip \
- && pip install -r requirements.txt \
- && if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+ && pip install -r requirements.txt
 
 # Копируем исходники
 COPY . .
+
+# (опционально) dev-зависимости, если файл присутствует в репозитории
+RUN if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
 
 # Приложение слушает 45469
 EXPOSE 45469
