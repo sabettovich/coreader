@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coreader</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=4" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Coreader</h1>
+      <div class="status">Граница прочитанного: <span id="boundary-status">не задана</span></div>
+      <div id="offline-banner" class="banner hidden">Оффлайн-режим: генерация ответов отключена, доступны только цитаты.</div>
+      <section class="settings">
+        <h2>Настройки</h2>
+        <div class="row">
+          <label for="boundary">Граница прочитанного (seq):</label>
+          <input id="boundary" type="number" min="0" step="1" placeholder="напр. 100" />
+          <button id="save-settings" type="button">Сохранить</button>
+          <button id="clear-boundary" type="button">Сбросить</button>
+        </div>
+        <div class="row">
+          <label for="offline">Оффлайн-режим:</label>
+          <input id="offline" type="checkbox" />
+          <span class="hint">(отключает генерацию и онлайн-интеграции)</span>
+        </div>
+        <div class="row">
+          <label for="socratic">Сократичность:</label>
+          <select id="socratic">
+            <option value="1">1 — прямой ответ</option>
+            <option value="2" selected>2 — ответ + вопрос</option>
+            <option value="3">3 — в основном вопрос</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="reply-limit">Лимит ответа (символы):</label>
+          <input id="reply-limit" type="number" min="120" max="1200" step="20" placeholder="примерно 400–600" />
+        </div>
+        <div class="row">
+          <div class="hint">Провайдеры:</div>
+          <div class="badges">
+            <span id="badge-openai" class="badge">OpenAI</span>
+            <span id="badge-zotero" class="badge">Zotero</span>
+          </div>
+        </div>
+        <div class="row">
+          <button id="save-settings-2" type="button">Сохранить настройки</button>
+        </div>
+      </section>
+      <section class="metrics">
+        <h2>Метрики</h2>
+        <div class="row">
+          <label for="m-start">C даты:</label>
+          <input id="m-start" type="date" />
+          <label for="m-end">По дату:</label>
+          <input id="m-end" type="date" />
+          <button id="m-refresh" type="button">Обновить</button>
+          <a id="m-csv" class="button-like" href="#" target="_blank" rel="noopener">CSV</a>
+        </div>
+        <div id="m-summary" class="hint"></div>
+        <div id="m-table" class="metrics-table"></div>
+      </section>
+      <section class="chat">
+        <div id="log"></div>
+        <form id="chat-form">
+          <input id="message" type="text" placeholder="Ваш вопрос по книге" required />
+          <button type="submit">Спросить</button>
+        </form>
+        <div class="actions">
+          <button id="save-note" type="button">Сохранить мысль</button>
+          <span id="save-status"></span>
+        </div>
+      </section>
+      <section class="progress">
+        <h2>Прогресс чтения</h2>
+        <div id="sections"></div>
+      </section>
+      <section class="logs">
+        <h2>Журнал</h2>
+        <div class="row">
+          <label for="log-role">Роль:</label>
+          <select id="log-role">
+            <option value="">Все</option>
+            <option value="user">Пользователь</option>
+            <option value="assistant">Ассистент</option>
+          </select>
+          <input id="log-q" type="text" placeholder="Поиск по тексту" />
+          <button id="log-refresh" type="button">Обновить</button>
+        </div>
+        <div id="log-files" class="hint"></div>
+        <div id="logs-list" class="logs-list"></div>
+      </section>
+    </main>
+    <!-- Modal: preview export -->
+    <div id="preview-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop"></div>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+        <h3 id="preview-title">Предпросмотр заметки</h3>
+        <div class="modal-body">
+          <div class="hint">Проверьте YAML и цитаты. Сохранить в Obsidian?</div>
+          <textarea id="preview-content" readonly></textarea>
+          <div class="suggest">Путь (рекомендуемый): <code id="preview-path"></code></div>
+          <div class="zotero-block">
+            <h4>Zotero</h4>
+            <div class="row">
+              <input id="zotero-q" type="text" placeholder="Поиск по названию в Zotero" />
+              <button id="zotero-search" type="button">Найти</button>
+            </div>
+            <div id="zotero-results" class="zotero-results"></div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button id="preview-cancel" type="button">Отмена</button>
+          <button id="preview-confirm" type="button">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/main.js?v=2" type="module"></script>
+  </body>
+</html>
